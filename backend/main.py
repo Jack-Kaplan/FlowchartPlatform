@@ -15,6 +15,11 @@ import uuid
 import logging
 import uvicorn
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from sse_starlette.sse import EventSourceResponse
+from fastapi import Request
+import asyncio
+import json
+import concurrent.futures
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -31,7 +36,7 @@ app.add_middleware(
 )
 
 # Number of worker processes
-NUM_WORKERS = 16  # Adjust based on your CPU
+NUM_WORKERS = 2  # Adjust based on your CPU
 
 # Use ThreadPoolExecutor instead of ProcessPoolExecutor for Windows compatibility
 executor = ThreadPoolExecutor(max_workers=NUM_WORKERS)
@@ -239,7 +244,7 @@ def worker_process(worker_id, request_queue, results):
             results[request_id] = {"error": str(e)}
 
 @app.post("/generate_flowchart")
-async def generate_flowchart(request: GenerateFlowchartRequest, background_tasks: BackgroundTasks):
+async def generate_flowchart(request: GenerateFlowchartRequest):
     try:
         request_id = str(uuid.uuid4())
         future = executor.submit(process_request, request)
@@ -250,28 +255,48 @@ async def generate_flowchart(request: GenerateFlowchartRequest, background_tasks
         logger.error(f"Error queueing request: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/get_result/{request_id}")
-async def get_result(request_id: str):
-    try:
-        if request_id in results:
-            future = results[request_id]
-            if future.done():
-                try:
-                    result = future.result()
+@app.get("/sse_result/{request_id}")
+async def sse_result(request: Request, request_id: str):
+    async def event_generator():
+        while True:
+            if await request.is_disconnected():
+                break
+
+            if request_id in results:
+                future = results[request_id]
+                if isinstance(future, concurrent.futures.Future):
+                    if future.done():
+                        try:
+                            result = future.result()
+                            del results[request_id]
+                            yield {
+                                "event": "result",
+                                "data": json.dumps(result)
+                            }
+                            break
+                        except Exception as e:
+                            yield {
+                                "event": "error",
+                                "data": str(e)
+                            }
+                            break
+                else:
+                    # If the result is already available
+                    yield {
+                        "event": "result",
+                        "data": json.dumps(future)
+                    }
                     del results[request_id]
-                    logger.info(f"Result for request {request_id} retrieved successfully")
-                    return result
-                except Exception as e:
-                    logger.error(f"Error in request {request_id}: {str(e)}")
-                    raise HTTPException(status_code=500, detail=str(e))
+                    break
             else:
-                return {"message": "Processing not complete"}
-        else:
-            logger.info(f"Result for request {request_id} not found or invalid ID")
-            return {"message": "Invalid request ID"}
-    except Exception as e:
-        logger.error(f"Error retrieving result: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+                yield {
+                    "event": "processing",
+                    "data": json.dumps({"message": "Processing..."})
+                }
+            
+            await asyncio.sleep(1)
+
+    return EventSourceResponse(event_generator())
     
 
 def start_worker_processes(request_queue, results):

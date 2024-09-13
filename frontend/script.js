@@ -144,25 +144,36 @@ async function generateFlowchart() {
         const queueResult = await queueResponse.json();
         const requestId = queueResult.request_id;
 
-        // Step 2: Poll for the result
-        let result;
-        while (true) {
-            const resultResponse = await fetch(`${API_URL}/get_result/${requestId}`);
-            if (!resultResponse.ok) {
-                throw new Error(`HTTP error! status: ${resultResponse.status}`);
-            }
-            result = await resultResponse.json();
-            if (result.message !== "Processing not complete") {
-                break;
-            }
-            // Wait for 1 second before polling again
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        }
+        // Step 2: Set up Server-Sent Events
+        const eventSource = new EventSource(`${API_URL}/sse_result/${requestId}`);
 
-        // Display the result
-        document.getElementById('flowchart').src = `data:${result.content_type};base64,${result.flowchart}`;
-        document.getElementById('flowchart').style.display = 'block';
-        document.getElementById('outputText').value = `Accuracy: ${(result.accuracy * 100).toFixed(2)}%`;
+        eventSource.addEventListener('result', (event) => {
+            const result = JSON.parse(event.data);
+            // Display the result
+            document.getElementById('flowchart').src = `data:${result.content_type};base64,${result.flowchart}`;
+            document.getElementById('flowchart').style.display = 'block';
+            document.getElementById('outputText').value = `Accuracy: ${(result.accuracy * 100).toFixed(2)}%`;
+            eventSource.close();
+        });
+
+        eventSource.addEventListener('processing', (event) => {
+            const data = JSON.parse(event.data);
+            document.getElementById('outputText').value = data.message;
+        });
+
+        eventSource.addEventListener('error', (event) => {
+            const errorData = JSON.parse(event.data);
+            console.error('Server error:', errorData);
+            showNotification(`An error occurred: ${errorData}`);
+            eventSource.close();
+        });
+
+        eventSource.onerror = (error) => {
+            console.error('EventSource failed:', error);
+            eventSource.close();
+            showNotification('An error occurred while processing the request.');
+        };
+
     } catch (error) {
         console.error('Error:', error);
         showNotification(`An error occurred: ${error.message}`);
