@@ -1,3 +1,5 @@
+from multiprocessing import Process
+
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -314,7 +316,7 @@ def shutdown_workers(worker_processes, request_queue):
         p.join()
 
 def run():
-    manager = Manager()
+    manager = multiprocessing.Manager()
     request_queue = manager.Queue()
     results = manager.dict()
     
