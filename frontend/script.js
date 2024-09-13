@@ -1,18 +1,49 @@
 const API_URL = 'http://localhost:8000';
+let notificationContainer;
 
-function showHelp(topic) {
+function showHelpNotification(topic) {
     const helpMessages = {
         attributes: "Enter the attributes you want to use for classification, separated by commas.",
         priorities: "Enter the priorities for each attribute in the format 'attribute:priority', separated by commas. Higher numbers indicate higher priority.",
         threshold: "Enter the priority threshold. Attributes with priority above this value will always be included and placed on top."
     };
-    alert(helpMessages[topic]);
+    showNotification(helpMessages[topic]);
+}
+
+function createNotificationContainer() {
+    if (!notificationContainer) {
+        notificationContainer = document.createElement('div');
+        notificationContainer.className = 'notification-container';
+        document.body.appendChild(notificationContainer);
+    }
+}
+
+function showNotification(message) {
+    createNotificationContainer();
+
+    const notification = document.createElement('div');
+    notification.className = 'notification';
+    notification.textContent = message;
+    notificationContainer.appendChild(notification);
+    
+    // Show the notification
+    setTimeout(() => {
+        notification.style.opacity = '1';
+    }, 100);
+
+    // Hide and remove the notification after 5 seconds
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => {
+            notificationContainer.removeChild(notification);
+        }, 300); // Wait for fade-out transition to complete
+    }, 5000);
 }
 
 function updateAttributes() {
     const attributes = document.getElementById('attributes').value.split(',').map(attr => attr.trim());
     if (attributes.length === 0 || (attributes.length === 1 && attributes[0] === '')) {
-        alert("Please enter at least one attribute.");
+        showNotification("Please enter at least one attribute.");
         return;
     }
 
@@ -85,12 +116,13 @@ async function generateFlowchart() {
     const pngQuality = parseInt(document.getElementById('pngQuality').value);
 
     if (data.length === 0) {
-        alert("Please enter some data in the table.");
+        showNotification("Please enter some data in the table.");
         return;
     }
 
     try {
-        const response = await fetch(`${API_URL}/generate_flowchart`, {
+        // Step 1: Queue the request
+        const queueResponse = await fetch(`${API_URL}/generate_flowchart`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -105,19 +137,38 @@ async function generateFlowchart() {
             }),
         });
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+        if (!queueResponse.ok) {
+            throw new Error(`HTTP error! status: ${queueResponse.status}`);
         }
 
-        const result = await response.json();
+        const queueResult = await queueResponse.json();
+        const requestId = queueResult.request_id;
+
+        // Step 2: Poll for the result
+        let result;
+        while (true) {
+            const resultResponse = await fetch(`${API_URL}/get_result/${requestId}`);
+            if (!resultResponse.ok) {
+                throw new Error(`HTTP error! status: ${resultResponse.status}`);
+            }
+            result = await resultResponse.json();
+            if (result.message !== "Processing not complete") {
+                break;
+            }
+            // Wait for 1 second before polling again
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        // Display the result
         document.getElementById('flowchart').src = `data:${result.content_type};base64,${result.flowchart}`;
         document.getElementById('flowchart').style.display = 'block';
         document.getElementById('outputText').value = `Accuracy: ${(result.accuracy * 100).toFixed(2)}%`;
     } catch (error) {
         console.error('Error:', error);
-        alert(`An error occurred: ${error.message}`);
+        showNotification(`An error occurred: ${error.message}`);
     }
 }
+
 
 function togglePngQualityVisibility() {
     const exportFormat = document.getElementById('exportFormat').value;
@@ -140,7 +191,7 @@ function getDataFromTable() {
         for (let j = 2; j < row.cells.length; j++) {
             const value = row.cells[j].querySelector('input').value.trim();
             if (value === '') {
-                alert(`Row ${i} has missing information. Please fill all fields.`);
+                showNotification(`Row ${i} has missing information. Please fill all fields.`);
                 return [];
             }
             rowData.attributes[headers[j-2]] = value;
@@ -174,7 +225,7 @@ function saveConfiguration() {
 
     URL.revokeObjectURL(url);
 
-    alert('Configuration saved successfully. Check your downloads folder.');
+    showNotification('Configuration saved successfully. Check your downloads folder.');
 }
 
 function loadConfiguration() {
@@ -218,10 +269,10 @@ function loadConfiguration() {
                     });
                 });
 
-                alert('Configuration loaded successfully');
+                showNotification('Configuration loaded successfully');
             } catch (error) {
                 console.error('Error:', error);
-                alert(`An error occurred while loading the configuration: ${error.message}`);
+                showNotification(`An error occurred while loading the configuration: ${error.message}`);
             }
         };
 

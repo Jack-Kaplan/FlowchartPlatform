@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Optional
@@ -9,16 +9,35 @@ import numpy as np
 from graphviz import Digraph
 import base64
 import io
+import multiprocessing
+import time
+import uuid
+import logging
+import uvicorn
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+# Number of worker processes
+NUM_WORKERS = 16  # Adjust based on your CPU
+
+# Use ThreadPoolExecutor instead of ProcessPoolExecutor for Windows compatibility
+executor = ThreadPoolExecutor(max_workers=NUM_WORKERS)
+
+# Shared dictionary for results (thread-safe)
+results = {}
 
 class DecisionNode:
     def __init__(self, feature=None, children=None, value=None):
@@ -30,18 +49,13 @@ class DataItem(BaseModel):
     Element: str
     attributes: Dict[str, str]
 
-class Configuration(BaseModel):
-    attributes: str
-    priorities: str
-    data: List[DataItem]
-
 class GenerateFlowchartRequest(BaseModel):
     attributes: str
     priorities: str
     threshold: float
     data: List[DataItem]
-    export_format: str = "png"  # Can be "png" or "svg"
-    png_quality: int = 300  # DPI for PNG export, ignored for SVG
+    export_format: str = "png"
+    png_quality: int = 300
 
 def entropy(labels):
     counts = Counter(labels)
@@ -58,21 +72,20 @@ def information_gain(data, feature, target):
     return total_entropy - weighted_feature_entropy
 
 def find_best_splits(data, features, target, feature_priorities):
-    gains = {feature: information_gain(data, feature, target) * feature_priorities.get(feature, 1) for feature in features}
+    gains = {feature: information_gain(data, feature, target) * feature_priorities.get(feature, 1) for feature in features if feature_priorities.get(feature, 1) != 0}
+    if not gains:
+        return []
     max_gain = max(gains.values())
     return [feature for feature, gain in gains.items() if gain == max_gain]
 
 def prune_single_item_chains(node):
     if node.value is not None:
         return node
-
     if len(node.children) == 1:
         child = list(node.children.values())[0]
         return prune_single_item_chains(child)
-
     for value, child in node.children.items():
         node.children[value] = prune_single_item_chains(child)
-
     return node
 
 def build_tree(data, features, target, feature_priorities, priority_threshold, depth=0, max_depth=10):
@@ -80,16 +93,15 @@ def build_tree(data, features, target, feature_priorities, priority_threshold, d
         return DecisionNode(value=data[target].iloc[0])
     if len(features) == 0 or depth == max_depth:
         unique_values = data[target].unique()
-        if len(unique_values) == 1:
-            return DecisionNode(value=unique_values[0])
-        else:
-            return DecisionNode(value=unique_values.tolist())
+        return DecisionNode(value=unique_values[0] if len(unique_values) == 1 else unique_values.tolist())
 
-    high_priority_features = [f for f in features if feature_priorities.get(f, 0) > priority_threshold]
+    high_priority_features = [f for f in features if feature_priorities.get(f, 1) > priority_threshold]
     if high_priority_features:
-        best_feature = max(high_priority_features, key=lambda f: feature_priorities.get(f, 0))
+        best_feature = max(high_priority_features, key=lambda f: feature_priorities.get(f, 1))
     else:
         best_features = find_best_splits(data, features, target, feature_priorities)
+        if not best_features:
+            return DecisionNode(value=data[target].unique().tolist())
         best_feature = random.choice(best_features)
 
     node = DecisionNode(feature=best_feature)
@@ -107,7 +119,7 @@ def classify(sample, tree):
         return tree.value
     feature_value = sample.get(tree.feature)
     if feature_value not in tree.children:
-        return None  # Unable to classify
+        return None
     return classify(sample, tree.children[feature_value])
 
 def generate_orthogonal_flow_chart(tree, feature_priorities, priority_threshold, dot=None, parent_name=None, edge_label=None):
@@ -148,17 +160,19 @@ def parse_priorities(priorities_text):
         for item in priorities_text.split(','):
             try:
                 attribute, priority = item.split(':')
-                attribute_priorities[attribute.strip()] = float(priority.strip())
+                priority = float(priority.strip())
+                if priority != 0:
+                    attribute_priorities[attribute.strip()] = priority
             except ValueError:
                 raise ValueError(f"Invalid priority format: {item}")
     return attribute_priorities
 
-@app.post("/generate_flowchart")
-async def generate_flowchart(request: GenerateFlowchartRequest):
+def process_request(request):
     try:
+        logger.info(f"Processing request: {request}")
         attributes = [attr.strip() for attr in request.attributes.split(',') if attr.strip()]
         if not attributes:
-            raise HTTPException(status_code=400, detail="Please enter at least one attribute.")
+            raise ValueError("Please enter at least one attribute.")
 
         attribute_priorities = parse_priorities(request.priorities)
         priority_threshold = request.threshold
@@ -178,14 +192,13 @@ async def generate_flowchart(request: GenerateFlowchartRequest):
         if request.export_format.lower() == "svg":
             img = flow_chart.pipe(format='svg')
             content_type = "image/svg+xml"
-        else:  # Default to PNG
+        else:
             flow_chart.attr(dpi=str(request.png_quality))
             img = flow_chart.pipe(format='png')
             content_type = "image/png"
 
         encoded_img = base64.b64encode(img).decode('utf-8')
 
-        # Adjusted accuracy calculation
         total_score = 0
         for _, sample in df.iterrows():
             classification = classify(sample, tree)
@@ -198,30 +211,98 @@ async def generate_flowchart(request: GenerateFlowchartRequest):
                 if classification == sample["Element"]:
                     total_score += 1
 
-        accuracy = total_score / len(df)
+        accuracy = total_score / len(df) if len(df) > 0 else 0
 
+        logger.info(f"Request processed successfully. Accuracy: {accuracy}")
         return {
             "flowchart": encoded_img,
             "content_type": content_type,
             "accuracy": accuracy
         }
     except Exception as e:
+        logger.error(f"Error processing request: {str(e)}")
+        raise
+
+def worker_process(worker_id, request_queue, results):
+    logger.info(f"Worker {worker_id} started")
+    while True:
+        request_id, request = request_queue.get()
+        if request is None:
+            logger.info(f"Worker {worker_id} shutting down")
+            break
+        try:
+            result = process_request(request)
+            results[request_id] = result
+            logger.info(f"Worker {worker_id} completed request {request_id}")
+        except Exception as e:
+            logger.error(f"Worker {worker_id} encountered an error: {str(e)}")
+            results[request_id] = {"error": str(e)}
+
+@app.post("/generate_flowchart")
+async def generate_flowchart(request: GenerateFlowchartRequest, background_tasks: BackgroundTasks):
+    try:
+        request_id = str(uuid.uuid4())
+        future = executor.submit(process_request, request)
+        results[request_id] = future
+        logger.info(f"Request {request_id} queued for processing")
+        return {"request_id": request_id, "message": "Request queued for processing"}
+    except Exception as e:
+        logger.error(f"Error queueing request: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/save_configuration")
-async def save_configuration(config: Configuration):
+@app.get("/get_result/{request_id}")
+async def get_result(request_id: str):
     try:
-        return {"message": "Configuration saved successfully"}
+        if request_id in results:
+            future = results[request_id]
+            if future.done():
+                try:
+                    result = future.result()
+                    del results[request_id]
+                    logger.info(f"Result for request {request_id} retrieved successfully")
+                    return result
+                except Exception as e:
+                    logger.error(f"Error in request {request_id}: {str(e)}")
+                    raise HTTPException(status_code=500, detail=str(e))
+            else:
+                return {"message": "Processing not complete"}
+        else:
+            logger.info(f"Result for request {request_id} not found or invalid ID")
+            return {"message": "Invalid request ID"}
     except Exception as e:
+        logger.error(f"Error retrieving result: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+    
 
-@app.post("/load_configuration")
-async def load_configuration(config: Configuration):
+def start_worker_processes(request_queue, results):
+    worker_processes = []
+    for i in range(NUM_WORKERS):
+        p = Process(target=worker_process, args=(i, request_queue, results))
+        p.start()
+        worker_processes.append(p)
+    return worker_processes
+
+def shutdown_workers(worker_processes, request_queue):
+    for _ in worker_processes:
+        request_queue.put((None, None))
+    for p in worker_processes:
+        p.join()
+
+def run():
+    manager = Manager()
+    request_queue = manager.Queue()
+    results = manager.dict()
+    
+    app.state.request_queue = request_queue
+    app.state.results = results
+    
+    worker_processes = start_worker_processes(request_queue, results)
+    
+    import uvicorn
     try:
-        return {"message": "Configuration loaded successfully", "config": config}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        uvicorn.run(app, host="0.0.0.0", port=8000)
+    finally:
+        shutdown_workers(worker_processes, request_queue)
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
