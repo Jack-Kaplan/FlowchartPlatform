@@ -11,9 +11,8 @@
         table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f2f2f2; }
-        /* Styles for the specific input fields */
         #attributes, #priorities, #threshold {
-            width: 400px; /* Doubled the width */
+            width: 400px;
         }
         .notification-container {
             position: fixed;
@@ -22,7 +21,6 @@
             max-width: 300px;
             z-index: 1000;
         }
-
         .notification {
             background-color: #f8f8f8;
             border: 1px solid #ddd;
@@ -34,10 +32,14 @@
             transition: opacity 0.3s ease-in-out;
         }
     </style>
-
 </head>
 <body>
     <h1>Mineral Identification Flowchart Generator</h1>
+    <div>
+        <label for="apiUrl">API URL:</label>
+        <input type="text" id="apiUrl" placeholder="Enter new API URL">
+        <button onclick="updateApiUrl()">Update API URL</button>
+    </div>
     <div>
         <label for="attributes">Attributes:</label>
         <input type="text" id="attributes" placeholder="Enter attributes, separated by commas">

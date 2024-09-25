@@ -1,5 +1,15 @@
-const API_URL = 'http://localhost:8000';
+let API_URL = 'http://localhost:8000';  // Changed to 'let' so it can be updated
 let notificationContainer;
+
+function updateApiUrl() {
+    const newApiUrl = document.getElementById('apiUrl').value;
+    if (newApiUrl) {
+        API_URL = newApiUrl;
+        showNotification(`API URL updated to: ${API_URL}`);
+    } else {
+        showNotification('Please enter a valid API URL.');
+    }
+}
 
 function showHelpNotification(topic) {
     const helpMessages = {
@@ -25,7 +35,7 @@ function showNotification(message) {
     notification.className = 'notification';
     notification.textContent = message;
     notificationContainer.appendChild(notification);
-    
+
     // Show the notification
     setTimeout(() => {
         notification.style.opacity = '1';
