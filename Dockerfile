@@ -1,4 +1,3 @@
-# Use Python 3.12.6 as the base image
 FROM python:3.12.6-slim
 
 # Install system dependencies, including graphviz and git
@@ -23,4 +22,4 @@ COPY backend/ .
 EXPOSE 8000
 
 # Command to run the backend application
-CMD ["python", "backend/main.py"]
+CMD ["python3", "main.py"]
