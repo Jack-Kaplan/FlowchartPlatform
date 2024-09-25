@@ -1,0 +1,27 @@
+version: "3.8"
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: build.dockerfile
+    container_name: flowchart_py_backend
+    restart: unless-stopped
+    ports:
+      - "30056:8000"  # Maps backend container port 8000 to host's 30056
+    networks:
+      - flowchart_network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: nginx.dockerfile
+    container_name: flowchart_py_frontend
+    restart: unless-stopped
+    ports:
+      - "30057:80"  # Maps frontend container port 80 to host's 30057
+    networks:
+      - flowchart_network
+
+networks:
+  flowchart_network:
+    driver: bridge

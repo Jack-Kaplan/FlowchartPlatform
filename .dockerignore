@@ -1,7 +1,5 @@
-__pycache__
-*.pyc
-*.pyo
-*.pyd
+.idea
+.vscode
 .git
-.env
-.venv
+.gitignore
+.dockerignore
