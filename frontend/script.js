@@ -1,4 +1,4 @@
-let API_URL = 'http://10.8.0.1:30056';  // Changed to 'let' so it can be updated
+let API_URL = 'http://localhost:8000';  // Changed to 'let' so it can be updated
 let notificationContainer;
 
 function updateApiUrl() {
