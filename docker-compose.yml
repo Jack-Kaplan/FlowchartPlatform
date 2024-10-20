@@ -2,7 +2,7 @@ version: "3.8"
 services:
   backend:
     build:
-      context: .
+      context: .  # Make sure the context is the root of the project, where Dockerfile exists
       dockerfile: Dockerfile
     container_name: flowchart_py_backend
     restart: unless-stopped
@@ -13,7 +13,7 @@ services:
 
   frontend:
     build:
-      context: .
+      context: .  # Assuming your nginx.dockerfile and frontend are in the root directory
       dockerfile: nginx.dockerfile
     container_name: flowchart_py_frontend
     restart: unless-stopped
