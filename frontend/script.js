@@ -15,6 +15,7 @@ function showHelpNotification(topic) {
     const helpMessages = {
         attributes: "Enter the attributes you want to use for classification, separated by commas.",
         priorities: "Enter the priorities for each attribute in the format 'attribute:priority', separated by commas. Higher numbers indicate higher priority.",
+        apiUrl: "Enter the URL of the API server. This is used to generate the flowchart. Default is http://10.8.0.1:30056.",
         threshold: "Enter the priority threshold. Attributes with priority above this value will always be included and placed on top."
     };
     showNotification(helpMessages[topic]);
