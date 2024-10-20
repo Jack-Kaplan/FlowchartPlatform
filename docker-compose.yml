@@ -2,21 +2,23 @@ version: "3.8"
 services:
   backend:
     build:
-      context: .  # Make sure the context is the root of the project, where Dockerfile exists
+      context: .  # This should point to the directory with the Dockerfile
       dockerfile: Dockerfile
     container_name: flowchart_py_backend
-    restart: unless-stopped
     ports:
       - "30056:8000"
     networks:
       - flowchart_network
+    environment:
+      - NUM_WORKERS=2
+    # Remove the restart policy to avoid continuous restarts
+    restart: "no"
 
   frontend:
     build:
-      context: .  # Assuming your nginx.dockerfile and frontend are in the root directory
+      context: .
       dockerfile: nginx.dockerfile
     container_name: flowchart_py_frontend
-    restart: unless-stopped
     ports:
       - "30057:80"
     networks:
