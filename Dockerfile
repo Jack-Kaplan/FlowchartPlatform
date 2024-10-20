@@ -12,20 +12,17 @@ RUN apt-get update && apt-get install -y \
 # Set the working directory for the backend code
 WORKDIR /app/backend
 
-# Copy the requirements file from the backend directory into the container
-COPY backend/requirements.txt ./
+# Copy only requirements.txt first to use Docker cache efficiently
+COPY backend/requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the backend source code into the container
-COPY backend/ .
+# Copy the rest of the backend source code into the container
+COPY backend/ /app/backend
 
 # Expose the backend port
 EXPOSE 8000
-
-# Debugging: print the contents of /app/backend
-RUN echo "Listing contents of /app/backend" && ls -la /app/backend
 
 # Command to run the backend application
 CMD ["python3", "main.py"]
