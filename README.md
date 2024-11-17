@@ -115,8 +115,8 @@ FlowchartPlatform is a FastAPI-based tool for generating orthogonal flowcharts f
 
 ## Licensing
 
-- **Personal Use**: This project is free for personal use.  
-- **Commercial Use**: For any commercial use, please reach out for permission (though commercial use cases are unlikely at this stage).  
+- **Personal (Non-Commercial) Use**: This project is free for personal use.  
+- **Commercial Use**: For any commercial use, please reach out for permission.
 
 ---
 
