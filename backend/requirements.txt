@@ -5,3 +5,6 @@ numpy
 graphviz
 uvicorn
 sse-starlette
+pytest
+pytest-asyncio
+httpx

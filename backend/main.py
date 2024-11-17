@@ -1,8 +1,7 @@
 from multiprocessing import Process
-
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, constr
 from typing import List, Dict, Optional
 import pandas as pd
 import random
@@ -54,10 +53,10 @@ class DecisionNode:
 
 class DataItem(BaseModel):
     Element: str
-    attributes: Dict[str, str]
+    attributes: Dict[str, Optional[str]]  # Allow attribute values to be None
 
 class GenerateFlowchartRequest(BaseModel):
-    attributes: str
+    attributes: constr(min_length=1)  # Ensures attributes is a non-empty string
     priorities: str
     threshold: float
     data: List[DataItem]
@@ -178,9 +177,7 @@ def process_request(request):
     try:
         logger.info(f"Processing request: {request}")
         attributes = [attr.strip() for attr in request.attributes.split(',') if attr.strip()]
-        if not attributes:
-            raise ValueError("Please enter at least one attribute.")
-
+        # Removed manual validation
         attribute_priorities = parse_priorities(request.priorities)
         priority_threshold = request.threshold
 
@@ -188,8 +185,15 @@ def process_request(request):
             if attr not in attribute_priorities:
                 attribute_priorities[attr] = 1.0
 
-        data = [{"Element": item.Element, **item.attributes} for item in request.data]
+        data = []
+        for item in request.data:
+            element = item.Element
+            attrs = {attr: item.attributes.get(attr, 'unknown') for attr in attributes}
+            data.append({"Element": element, **attrs})
+        
         df = pd.DataFrame(data)
+
+        df.fillna('unknown', inplace=True)
 
         tree = build_tree(df, attributes, "Element", attribute_priorities, priority_threshold)
         tree = prune_single_item_chains(tree)
@@ -299,7 +303,6 @@ async def sse_result(request: Request, request_id: str):
             await asyncio.sleep(1)
 
     return EventSourceResponse(event_generator())
-    
 
 def start_worker_processes(request_queue, results):
     worker_processes = []
@@ -318,18 +321,17 @@ def shutdown_workers(worker_processes, request_queue):
 def run():
     manager = multiprocessing.Manager()
     request_queue = manager.Queue()
-    results = manager.dict()
+    results_shared = manager.dict()
     
     app.state.request_queue = request_queue
-    app.state.results = results
+    app.state.results = results_shared
     
-    worker_processes = start_worker_processes(request_queue, results)
+    worker_processes = start_worker_processes(request_queue, results_shared)
     
-    import uvicorn
     try:
         uvicorn.run(app, host="0.0.0.0", port=8000)
     finally:
         shutdown_workers(worker_processes, request_queue)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    run()

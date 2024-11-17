@@ -13,7 +13,7 @@ function updateApiUrl() {
 
 function showHelpNotification(topic) {
     const helpMessages = {
-        attributes: "Enter the attributes you want to use for classification, separated by commas.",
+        attributes: "Enter the attributes you want to use for classification, separated by commas. You can leave some attribute fields empty; they will be treated as 'unknown'.",
         priorities: "Enter the priorities for each attribute in the format 'attribute:priority', separated by commas. Higher numbers indicate higher priority.",
         apiUrl: "Enter the URL of the API server. This is used to generate the flowchart. Default is http://10.8.0.1:30056.",
         threshold: "Enter the priority threshold. Attributes with priority above this value will always be included and placed on top."
@@ -79,7 +79,7 @@ function updateAttributes() {
         const row = tbody.rows[i];
         while (row.cells.length < attributes.length + 2) {
             const cell = row.insertCell(-1);
-            cell.innerHTML = '<input type="text">';
+            cell.innerHTML = '<input type="text" placeholder="unknown">';
         }
         while (row.cells.length > attributes.length + 2) {
             row.deleteCell(-1);
@@ -101,7 +101,7 @@ function addElement() {
     
     for (let i = 2; i < table.rows[0].cells.length; i++) {
         const cell = row.insertCell();
-        cell.innerHTML = '<input type="text">';
+        cell.innerHTML = '<input type="text" placeholder="unknown">';  // Added placeholder for clarity
     }
 }
 
@@ -191,7 +191,6 @@ async function generateFlowchart() {
     }
 }
 
-
 function togglePngQualityVisibility() {
     const exportFormat = document.getElementById('exportFormat').value;
     const pngQualityGroup = document.getElementById('pngQualityGroup');
@@ -211,12 +210,10 @@ function getDataFromTable() {
         };
 
         for (let j = 2; j < row.cells.length; j++) {
-            const value = row.cells[j].querySelector('input').value.trim();
-            if (value === '') {
-                showNotification(`Row ${i} has missing information. Please fill all fields.`);
-                return [];
-            }
-            rowData.attributes[headers[j-2]] = value;
+            const inputField = row.cells[j].querySelector('input');
+            const value = inputField.value.trim();
+            // Removed validation for empty fields
+            rowData.attributes[headers[j-2]] = value;  // Empty strings will be handled by the backend as "unknown"
         }
 
         data.push(rowData);
@@ -287,7 +284,7 @@ function loadConfiguration() {
                     // Add attribute cells
                     Object.values(item.attributes).forEach(value => {
                         const cell = row.insertCell();
-                        cell.innerHTML = `<input type="text" value="${value}">`;
+                        cell.innerHTML = `<input type="text" value="${value}" placeholder="unknown">`;  // Added placeholder for clarity
                     });
                 });
 

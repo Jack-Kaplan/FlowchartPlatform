@@ -31,6 +31,14 @@
             opacity: 0;
             transition: opacity 0.3s ease-in-out;
         }
+        /* New Styles for Information Messages */
+        .info-message {
+            background-color: #e7f3fe;
+            border-left: 6px solid #2196F3;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -61,6 +69,12 @@
         <button onclick="addElement()">Add Element</button>
         <button onclick="removeElement()">Remove Selected</button>
     </div>
+    
+    <!-- Informational Message About Handling Missing Values -->
+    <div class="info-message">
+        <strong>Note:</strong> You can leave attribute fields empty. Missing attribute values will be treated as "unknown".
+    </div>
+    
     <table id="dataTable">
         <thead>
             <tr>
