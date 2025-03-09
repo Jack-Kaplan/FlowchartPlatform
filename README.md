@@ -6,7 +6,7 @@ FlowchartPlatform is a comprehensive web-based tool that generates intelligent f
 
 The system consists of a FastAPI backend that handles data processing and flowchart generation, along with a web frontend for user interaction. FlowchartPlatform uses information theory principles (entropy and information gain) combined with user-defined priorities to build optimal decision trees, which are then visualized as orthogonal flowcharts.
 
-![FlowchartPlatform Example](https://via.placeholder.com/800x400?text=FlowchartPlatform+Example)
+<img src="assets/demo.png" alt="FlowchartPlatform Example" height="400">
 
 ---
 
