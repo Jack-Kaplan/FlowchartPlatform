@@ -4,105 +4,104 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mineral Identification Flowchart Generator</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        input, button, select { margin: 5px 0; }
-        #flowchart { max-width: 100%; height: auto; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        #attributes, #priorities, #threshold {
-            width: 400px;
-        }
-        .notification-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            max-width: 300px;
-            z-index: 1000;
-        }
-        .notification {
-            background-color: #f8f8f8;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 10px;
-            margin-bottom: 10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            opacity: 0;
-            transition: opacity 0.3s ease-in-out;
-        }
-        /* New Styles for Information Messages */
-        .info-message {
-            background-color: #e7f3fe;
-            border-left: 6px solid #2196F3;
-            padding: 10px;
-            margin-bottom: 15px;
-            border-radius: 4px;
-        }
-    </style>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <h1>Mineral Identification Flowchart Generator</h1>
-    <div>
-        <label for="apiUrl">API URL:</label>
-        <input type="text" id="apiUrl" placeholder="Enter new API URL">
-        <button onclick="showHelpNotification('apiUrl')">?</button>
-        <button onclick="updateApiUrl()">Update API URL</button>
-    </div>
-    <div>
-        <label for="attributes">Attributes:</label>
-        <input type="text" id="attributes" placeholder="Enter attributes, separated by commas">
-        <button onclick="showHelpNotification('attributes')">?</button>
-        <button onclick="updateAttributes()">Update Attributes</button>
-    </div>
-    <div>
-        <label for="priorities">Priorities:</label>
-        <input type="text" id="priorities" placeholder="Enter priorities (e.g., attr1:1,attr2:2)">
-        <button onclick="showHelpNotification('priorities')">?</button>
-    </div>
-    <div>
-        <label for="threshold">Threshold:</label>
-        <input type="number" id="threshold" step="0.1" min="0" max="1">
-        <button onclick="showHelpNotification('threshold')">?</button>
-    </div>
-    <div>
-        <button onclick="addElement()">Add Element</button>
-        <button onclick="removeElement()">Remove Selected</button>
+    <div class="container">
+        <h1>Mineral Identification Flowchart Generator</h1>
+        
+        <div class="card">
+            <div class="form-group inline">
+                <label for="apiUrl">API URL:</label>
+                <div class="form-row">
+                    <input type="text" id="apiUrl" placeholder="Enter new API URL">
+                    <button onclick="showHelpNotification('apiUrl')" class="help">?</button>
+                    <button onclick="updateApiUrl()">Update</button>
+                </div>
+            </div>
+            
+            <div class="grid-2">
+                <div class="form-group">
+                    <label for="attributes">Attributes:</label>
+                    <div class="form-row">
+                        <input type="text" id="attributes" placeholder="Enter attributes, separated by commas">
+                        <button onclick="showHelpNotification('attributes')" class="help">?</button>
+                        <button onclick="updateAttributes()">Update</button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="priorities">Priorities:</label>
+                    <div class="form-row">
+                        <input type="text" id="priorities" placeholder="Enter priorities (e.g., attr1:1,attr2:2)">
+                        <button onclick="showHelpNotification('priorities')" class="help">?</button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="threshold">Threshold:</label>
+                    <div class="form-row">
+                        <input type="number" id="threshold" step="0.1" min="0" max="1000" value="10">
+                        <button onclick="showHelpNotification('threshold')" class="help">?</button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="exportFormat">Export Format:</label>
+                    <div class="form-row">
+                        <select id="exportFormat">
+                            <option value="png">PNG</option>
+                            <option value="svg">SVG</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="pngQualityGroup" class="form-group">
+                <label for="pngQuality">PNG Quality (DPI):</label>
+                <input type="number" id="pngQuality" value="300" min="72" max="600">
+            </div>
+            
+            <div class="info-message">
+                <strong>Note:</strong> You can leave attribute fields empty. Missing attribute values will be treated as "unknown".
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="btn-group">
+                <button onclick="addElement()">Add Element</button>
+                <button onclick="removeElement()">Remove Selected</button>
+            </div>
+            
+            <div class="table-container">
+                <table id="dataTable">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Element</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            
+            <div class="btn-group">
+                <button onclick="generateFlowchart()">Generate Flowchart</button>
+                <button onclick="saveConfiguration()" class="secondary">Save Config</button>
+                <button onclick="loadConfiguration()" class="secondary">Load Config</button>
+                <button onclick="exportGraph()" class="secondary">Export Graph</button>
+            </div>
+        </div>
+        
+        <div class="card output-section">
+            <img id="flowchart" alt="Flowchart will appear here">
+            <textarea id="outputText" rows="4" readonly placeholder="Processing output will appear here"></textarea>
+        </div>
     </div>
     
-    <!-- Informational Message About Handling Missing Values -->
-    <div class="info-message">
-        <strong>Note:</strong> You can leave attribute fields empty. Missing attribute values will be treated as "unknown".
-    </div>
-    
-    <table id="dataTable">
-        <thead>
-            <tr>
-                <th></th>
-                <th>Element</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
-    <div>
-        <label for="exportFormat">Export Format:</label>
-        <select id="exportFormat">
-            <option value="png">PNG</option>
-            <option value="svg">SVG</option>
-        </select>
-    </div>
-    <div id="pngQualityGroup">
-        <label for="pngQuality">PNG Quality (DPI):</label>
-        <input type="number" id="pngQuality" value="300" min="72" max="600">
-    </div>
-    <button onclick="generateFlowchart()">Generate Flowchart</button>
-    <button onclick="saveConfiguration()">Save Configuration</button>
-    <button onclick="loadConfiguration()">Load Configuration</button>
-    <button onclick="exportGraph()">Export Graph</button>
-    <div>
-        <img id="flowchart" alt="Flowchart will appear here" style="display: none;">
-    </div>
-    <textarea id="outputText" rows="4" cols="50" readonly></textarea>
     <script src="script.js"></script>
 </body>
 </html>

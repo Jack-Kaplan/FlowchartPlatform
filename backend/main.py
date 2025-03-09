@@ -1,33 +1,43 @@
-from multiprocessing import Process
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, constr
-from typing import List, Dict, Optional
-import pandas as pd
-import random
-from collections import Counter
-import numpy as np
-from graphviz import Digraph
+"""
+FlowchartPlatform Backend
+A FastAPI application for generating flowcharts based on decision trees.
+"""
+# ----- 1. IMPORTS -----
+# Standard library imports
+import asyncio
 import base64
 import io
+import json
+import logging
 import multiprocessing
+import random
 import time
 import uuid
-import logging
-import uvicorn
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from sse_starlette.sse import EventSourceResponse
-from fastapi import Request
-import asyncio
-import json
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
+from multiprocessing import Process
 
+# Third-party imports
+import numpy as np
+import pandas as pd
+import uvicorn
+from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
+from graphviz import Digraph
+from pydantic import BaseModel, constr
+from sse_starlette.sse import EventSourceResponse
+from typing import List, Dict, Optional
+
+# ----- 2. CONFIGURATION AND SETUP -----
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# FastAPI application setup
 app = FastAPI()
 
+# CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -36,26 +46,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Number of worker processes
+# Worker configuration
 NUM_WORKERS = 2  # Adjust based on your CPU
+executor = ThreadPoolExecutor(max_workers=NUM_WORKERS)  # For Windows compatibility
+results = {}  # Shared dictionary for results
 
-# Use ThreadPoolExecutor instead of ProcessPoolExecutor for Windows compatibility
-executor = ThreadPoolExecutor(max_workers=NUM_WORKERS)
-
-# Shared dictionary for results (thread-safe)
-results = {}
-
+# ----- 3. DATA MODELS -----
 class DecisionNode:
+    """Represents a node in the decision tree."""
     def __init__(self, feature=None, children=None, value=None):
         self.feature = feature
         self.children = children or {}
         self.value = value
 
 class DataItem(BaseModel):
+    """Model for individual data items."""
     Element: str
     attributes: Dict[str, Optional[str]]  # Allow attribute values to be None
 
 class GenerateFlowchartRequest(BaseModel):
+    """Request model for flowchart generation."""
     attributes: constr(min_length=1)  # Ensures attributes is a non-empty string
     priorities: str
     threshold: float
@@ -63,12 +73,30 @@ class GenerateFlowchartRequest(BaseModel):
     export_format: str = "png"
     png_quality: int = 300
 
+# ----- 4. UTILITY FUNCTIONS -----
+def parse_priorities(priorities_text):
+    """Parse the priorities from text format to a dictionary."""
+    attribute_priorities = {}
+    if priorities_text:
+        for item in priorities_text.split(','):
+            try:
+                attribute, priority = item.split(':')
+                priority = float(priority.strip())
+                if priority != 0:
+                    attribute_priorities[attribute.strip()] = priority
+            except ValueError:
+                raise ValueError(f"Invalid priority format: {item}")
+    return attribute_priorities
+
+# ----- 5. ALGORITHM FUNCTIONS -----
 def entropy(labels):
+    """Calculate entropy for a set of labels."""
     counts = Counter(labels)
     probabilities = [count / len(labels) for count in counts.values()]
     return -sum(p * np.log2(p) for p in probabilities if p > 0)
 
 def information_gain(data, feature, target):
+    """Calculate information gain for a specific feature."""
     total_entropy = entropy(data[target])
     weighted_feature_entropy = 0
     for value in data[feature].unique():
@@ -78,23 +106,16 @@ def information_gain(data, feature, target):
     return total_entropy - weighted_feature_entropy
 
 def find_best_splits(data, features, target, feature_priorities):
-    gains = {feature: information_gain(data, feature, target) * feature_priorities.get(feature, 1) for feature in features if feature_priorities.get(feature, 1) != 0}
+    """Find the best features to split on based on information gain and priorities."""
+    gains = {feature: information_gain(data, feature, target) * feature_priorities.get(feature, 1) 
+            for feature in features if feature_priorities.get(feature, 1) != 0}
     if not gains:
         return []
     max_gain = max(gains.values())
     return [feature for feature, gain in gains.items() if gain == max_gain]
 
-def prune_single_item_chains(node):
-    if node.value is not None:
-        return node
-    if len(node.children) == 1:
-        child = list(node.children.values())[0]
-        return prune_single_item_chains(child)
-    for value, child in node.children.items():
-        node.children[value] = prune_single_item_chains(child)
-    return node
-
 def build_tree(data, features, target, feature_priorities, priority_threshold, depth=0, max_depth=10):
+    """Build a decision tree recursively."""
     if len(data[target].unique()) == 1:
         return DecisionNode(value=data[target].iloc[0])
     if len(features) == 0 or depth == max_depth:
@@ -120,7 +141,19 @@ def build_tree(data, features, target, feature_priorities, priority_threshold, d
 
     return node
 
+def prune_single_item_chains(node):
+    """Remove single-item chains in the decision tree."""
+    if node.value is not None:
+        return node
+    if len(node.children) == 1:
+        child = list(node.children.values())[0]
+        return prune_single_item_chains(child)
+    for value, child in node.children.items():
+        node.children[value] = prune_single_item_chains(child)
+    return node
+
 def classify(sample, tree):
+    """Classify a sample using the decision tree."""
     if tree.value is not None:
         return tree.value
     feature_value = sample.get(tree.feature)
@@ -129,6 +162,7 @@ def classify(sample, tree):
     return classify(sample, tree.children[feature_value])
 
 def generate_orthogonal_flow_chart(tree, feature_priorities, priority_threshold, dot=None, parent_name=None, edge_label=None):
+    """Generate a flowchart visualization from the decision tree."""
     if dot is None:
         dot = Digraph(comment='Mineral Identification Flow Chart')
         dot.attr(rankdir='TB', size='20,20', fontname='Arial', splines='ortho', nodesep='0.5', ranksep='0.5')
@@ -160,24 +194,12 @@ def generate_orthogonal_flow_chart(tree, feature_priorities, priority_threshold,
 
     return dot
 
-def parse_priorities(priorities_text):
-    attribute_priorities = {}
-    if priorities_text:
-        for item in priorities_text.split(','):
-            try:
-                attribute, priority = item.split(':')
-                priority = float(priority.strip())
-                if priority != 0:
-                    attribute_priorities[attribute.strip()] = priority
-            except ValueError:
-                raise ValueError(f"Invalid priority format: {item}")
-    return attribute_priorities
-
+# ----- 6. REQUEST PROCESSING -----
 def process_request(request):
+    """Process a flowchart generation request."""
     try:
         logger.info(f"Processing request: {request}")
         attributes = [attr.strip() for attr in request.attributes.split(',') if attr.strip()]
-        # Removed manual validation
         attribute_priorities = parse_priorities(request.priorities)
         priority_threshold = request.threshold
 
@@ -192,14 +214,16 @@ def process_request(request):
             data.append({"Element": element, **attrs})
         
         df = pd.DataFrame(data)
-
         df.fillna('unknown', inplace=True)
 
+        # Build and optimize the decision tree
         tree = build_tree(df, attributes, "Element", attribute_priorities, priority_threshold)
         tree = prune_single_item_chains(tree)
 
+        # Generate the flowchart
         flow_chart = generate_orthogonal_flow_chart(tree, attribute_priorities, priority_threshold)
         
+        # Export in the requested format
         if request.export_format.lower() == "svg":
             img = flow_chart.pipe(format='svg')
             content_type = "image/svg+xml"
@@ -210,6 +234,7 @@ def process_request(request):
 
         encoded_img = base64.b64encode(img).decode('utf-8')
 
+        # Calculate accuracy
         total_score = 0
         for _, sample in df.iterrows():
             classification = classify(sample, tree)
@@ -234,7 +259,9 @@ def process_request(request):
         logger.error(f"Error processing request: {str(e)}")
         raise
 
+# ----- 7. WORKER PROCESS MANAGEMENT -----
 def worker_process(worker_id, request_queue, results):
+    """Worker process function for handling requests."""
     logger.info(f"Worker {worker_id} started")
     while True:
         request_id, request = request_queue.get()
@@ -249,8 +276,26 @@ def worker_process(worker_id, request_queue, results):
             logger.error(f"Worker {worker_id} encountered an error: {str(e)}")
             results[request_id] = {"error": str(e)}
 
+def start_worker_processes(request_queue, results):
+    """Start the worker processes."""
+    worker_processes = []
+    for i in range(NUM_WORKERS):
+        p = Process(target=worker_process, args=(i, request_queue, results))
+        p.start()
+        worker_processes.append(p)
+    return worker_processes
+
+def shutdown_workers(worker_processes, request_queue):
+    """Shut down the worker processes."""
+    for _ in worker_processes:
+        request_queue.put((None, None))
+    for p in worker_processes:
+        p.join()
+
+# ----- 8. API ENDPOINTS -----
 @app.post("/generate_flowchart")
 async def generate_flowchart(request: GenerateFlowchartRequest):
+    """API endpoint for generating a flowchart."""
     try:
         request_id = str(uuid.uuid4())
         future = executor.submit(process_request, request)
@@ -263,6 +308,7 @@ async def generate_flowchart(request: GenerateFlowchartRequest):
 
 @app.get("/sse_result/{request_id}")
 async def sse_result(request: Request, request_id: str):
+    """Server-Sent Events endpoint for retrieving results."""
     async def event_generator():
         while True:
             if await request.is_disconnected():
@@ -304,21 +350,9 @@ async def sse_result(request: Request, request_id: str):
 
     return EventSourceResponse(event_generator())
 
-def start_worker_processes(request_queue, results):
-    worker_processes = []
-    for i in range(NUM_WORKERS):
-        p = Process(target=worker_process, args=(i, request_queue, results))
-        p.start()
-        worker_processes.append(p)
-    return worker_processes
-
-def shutdown_workers(worker_processes, request_queue):
-    for _ in worker_processes:
-        request_queue.put((None, None))
-    for p in worker_processes:
-        p.join()
-
+# ----- 9. APPLICATION STARTUP -----
 def run():
+    """Run the FastAPI application."""
     manager = multiprocessing.Manager()
     request_queue = manager.Queue()
     results_shared = manager.dict()
@@ -329,7 +363,7 @@ def run():
     worker_processes = start_worker_processes(request_queue, results_shared)
     
     try:
-        uvicorn.run(app, host="0.0.0.0", port=8000)
+        uvicorn.run(app, host="0.0.0.0", port=8080)
     finally:
         shutdown_workers(worker_processes, request_queue)
 

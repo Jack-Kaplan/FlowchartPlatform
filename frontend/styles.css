@@ -1,0 +1,266 @@
+/* Modern CSS for Flowchart Platform */
+
+:root {
+  --primary-color: #3498db;
+  --primary-dark: #2980b9;
+  --secondary-color: #2ecc71;
+  --text-color: #333;
+  --light-gray: #ecf0f1;
+  --border-color: #dcdde1;
+  --shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  --radius: 6px;
+  --transition: all 0.3s ease;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  color: var(--text-color);
+  line-height: 1.6;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #fafafa;
+}
+
+/* Typography */
+h1 {
+  font-weight: 600;
+  margin-bottom: 24px;
+  font-size: 1.8rem;
+  color: var(--primary-dark);
+}
+
+/* Layout */
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.card {
+  background-color: #fff;
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow);
+}
+
+/* Form Elements */
+.form-group {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+input, select, button, textarea {
+  font-family: inherit;
+  font-size: 1rem;
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  transition: var(--transition);
+}
+
+input:focus, 
+select:focus, 
+textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+}
+
+input, select, textarea {
+  background-color: #fff;
+  width: 100%;
+}
+
+button {
+  cursor: pointer;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+
+button:hover {
+  background-color: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+button.secondary {
+  background-color: white;
+  color: var(--primary-color);
+  border: 1px solid var(--primary-color);
+}
+
+button.secondary:hover {
+  background-color: #f8f8f8;
+}
+
+button.help {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  padding: 0;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* Table Styles */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+}
+
+th, td {
+  border: 1px solid var(--border-color);
+  padding: 12px;
+  text-align: left;
+}
+
+th {
+  background-color: var(--light-gray);
+  font-weight: 500;
+}
+
+tbody tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+tbody tr:hover {
+  background-color: #f0f7fa;
+}
+
+td input[type="text"] {
+  width: 100%;
+  padding: 6px;
+  border: 1px solid #eee;
+}
+
+/* Action Buttons */
+.btn-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Notification System */
+.notification-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  max-width: 320px;
+  z-index: 1000;
+}
+
+.notification {
+  background-color: white;
+  border-left: 4px solid var(--primary-color);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+/* Info Message */
+.info-message {
+  background-color: rgba(52, 152, 219, 0.1);
+  border-left: 4px solid var(--primary-color);
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+}
+
+.info-message strong {
+  margin-right: 8px;
+}
+
+/* Output Section */
+.output-section {
+  margin-top: 20px;
+}
+
+#flowchart {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  display: none;
+}
+
+#outputText {
+  width: 100%;
+  height: 80px;
+  resize: vertical;
+  font-family: monospace;
+  margin-top: 16px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .form-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  button, input, select {
+    width: 100%;
+  }
+  
+  .btn-group {
+    flex-direction: column;
+  }
+}
+
+@media (min-width: 768px) {
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  
+  .form-group.inline {
+    flex-direction: row;
+    align-items: center;
+  }
+  
+  .form-group.inline label {
+    margin-right: 10px;
+    margin-bottom: 0;
+    width: 100px;
+  }
+  
+  .form-group.inline input,
+  .form-group.inline select {
+    flex: 1;
+  }
+}

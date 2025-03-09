@@ -1,4 +1,4 @@
-let API_URL = 'http://localhost:8000';  // Changed to 'let' so it can be updated
+let API_URL = 'http://localhost:8080';  // Changed to 'let' so it can be updated
 let notificationContainer;
 
 function updateApiUrl() {
@@ -84,6 +84,13 @@ function updateAttributes() {
         while (row.cells.length > attributes.length + 2) {
             row.deleteCell(-1);
         }
+    }
+    
+    // Auto-populate priorities with default value of 1 for each attribute
+    const prioritiesField = document.getElementById('priorities');
+    if (attributes.length > 0 && attributes[0] !== '') {
+        const defaultPriorities = attributes.map(attr => `${attr}:1`).join(',');
+        prioritiesField.value = defaultPriorities;
     }
 }
 
