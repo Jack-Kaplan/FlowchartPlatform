@@ -26,8 +26,9 @@ import pandas as pd            # For data manipulation and analysis
 import uvicorn                 # ASGI server for running FastAPI applications
 from fastapi import FastAPI, HTTPException, Request, BackgroundTasks  # Web framework components
 from fastapi.middleware.cors import CORSMiddleware  # For handling Cross-Origin Resource Sharing
+from fastapi.staticfiles import StaticFiles # For serving static files
 from graphviz import Digraph   # For creating directed graphs/flowcharts
-from pydantic import BaseModel, constr  # For data validation and settings management
+from pydantic import BaseModel, constr, Field  # For data validation and settings management
 from sse_starlette.sse import EventSourceResponse  # For Server-Sent Events
 from typing import List, Dict, Optional  # For type annotations
 
@@ -47,6 +48,9 @@ app.add_middleware(
     allow_methods=["*"],          # Allow all HTTP methods
     allow_headers=["*"],          # Allow all headers
 )
+
+# Mount static files from the frontend directory
+app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 
 # Worker configuration - Setup for parallel processing
 NUM_WORKERS = 2  # Adjust based on your CPU cores and workload
@@ -77,7 +81,7 @@ class GenerateFlowchartRequest(BaseModel):
     Request model for flowchart generation.
     Contains all parameters needed to generate a flowchart.
     """
-    attributes: constr(min_length=1)  # Comma-separated list of attributes to consider
+    attributes: str = Field(..., min_length=1)  # Comma-separated list of attributes to consider
     priorities: str                   # Priority weights for attributes in format "attr:weight,attr2:weight2"
     threshold: float                  # Threshold for using priority over information gain
     data: List[DataItem]              # List of data items to build the decision tree from
@@ -605,6 +609,12 @@ def run():
     
     # Start worker processes
     worker_processes = start_worker_processes(request_queue, results_shared)
+    
+    # Print the web GUI link to the terminal
+    print("\n" + "="*50)
+    print("FlowchartPlatform is running!")
+    print("Access the web GUI at: http://127.0.0.1:8080/frontend/index.html")
+    print("="*50 + "\n")
     
     try:
         # Start ASGI server
